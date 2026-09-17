@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>個体値 逆算ツール（B_1＋A 同時推定） | 妖怪ウォッチ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Zen+Maru+Gothic:wght@400;500;700;900&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #0d1b2a;
+    --bg-2: #0a1420;
+    --surface: #142c42;
+    --surface-2: #1b3a56;
+    --line: rgba(212,175,106,0.18);
+    --gold: #d4af6a;
+    --gold-bright: #f0cf8e;
+    --teal: #5fc9b8;
+    --text: #eef3f7;
+    --text-muted: #93a8bd;
+    --danger: #e2665a;
+    --ok: #6fcf8e;
+    --radius: 14px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1100px 500px at 50% -10%, rgba(212,175,106,0.10), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(95,201,184,0.08), transparent 55%),
+      linear-gradient(180deg, var(--bg) 0%, var(--bg-2) 100%);
+    background-color: var(--bg);
+    color:var(--text);
+    font-family:'Zen Maru Gothic', sans-serif;
+    min-height:100vh;
+    padding: 28px 16px 80px;
+  }
+  .wrap{max-width:680px;margin:0 auto;}
+
+  header{display:flex;align-items:center;gap:16px;margin-bottom:24px;}
+  .medal{
+    flex:0 0 auto;width:64px;height:64px;border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, var(--gold-bright), var(--gold) 55%, #8a6a30 100%);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: 0 0 0 3px var(--bg-2), 0 0 0 5px var(--line), 0 6px 18px rgba(0,0,0,0.4);
+  }
+  .medal span{font-family:'Kosugi Maru', sans-serif;font-size:26px;color:#3a2a10;font-weight:700;}
+  h1{font-family:'Kosugi Maru', sans-serif;font-size:21px;line-height:1.4;margin:0;color:var(--gold-bright);letter-spacing:.02em;}
+  header p{margin:5px 0 0;color:var(--text-muted);font-size:13px;line-height:1.6;}
+
+  .card{
+    background:linear-gradient(180deg, var(--surface), var(--surface-2) 180%);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    padding:20px 20px 22px;
+    margin-bottom:18px;
+    position:relative;
+  }
+  .step{display:flex;align-items:baseline;gap:10px;margin-bottom:12px;}
+  .step .num{font-family:'Kosugi Maru', sans-serif;color:var(--gold);font-size:15px;flex:0 0 auto;}
+  .step h2{font-size:16px;margin:0;font-weight:700;color:var(--text);}
+  .hint{color:var(--text-muted);font-size:12.5px;line-height:1.7;margin:0 0 12px;}
+  .hint strong{color:var(--teal);font-weight:700;}
+
+  label{display:block;font-size:12.5px;color:var(--text-muted);margin-bottom:4px;}
+  input[type=text], input[type=number], select{
+    width:100%;
+    background:rgba(0,0,0,0.22);
+    border:1px solid rgba(255,255,255,0.12);
+    color:var(--text);
+    border-radius:9px;
+    padding:9px 10px;
+    font-size:14.5px;
+    font-family:inherit;
+  }
+  input:focus, select:focus, button:focus-visible, summary:focus-visible{
+    outline:2px solid var(--teal);outline-offset:1px;border-color:transparent;
+  }
+  input:disabled{opacity:.45;}
+
+  .picker{position:relative;}
+  .picker-list{
+    position:absolute;left:0;right:0;top:calc(100% + 4px);
+    max-height:260px;overflow-y:auto;
+    background:#0e2138;border:1px solid var(--line);
+    border-radius:10px;z-index:20;
+    box-shadow:0 12px 30px rgba(0,0,0,0.5);
+    display:none;
+  }
+  .picker-list.open{display:block;}
+  .picker-item{
+    padding:8px 12px;font-size:13.5px;cursor:pointer;
+    display:flex;justify-content:space-between;gap:10px;
+    border-bottom:1px solid rgba(255,255,255,0.05);
+  }
+  .picker-item:last-child{border-bottom:none;}
+  .picker-item:hover, .picker-item.active{background:rgba(212,175,106,0.14);}
+  .picker-item small{color:var(--text-muted);}
+  .selected-yokai{margin-top:10px;font-size:13px;color:var(--teal);min-height:18px;line-height:1.7;}
+
+  .stat-grid{display:grid;grid-template-columns: 82px repeat(5, 1fr);gap:6px 8px;align-items:center;}
+  .stat-grid .row-label{font-size:12px;color:var(--text-muted);}
+  .stat-grid .col-head{text-align:center;font-size:12.5px;color:var(--gold);font-weight:700;}
+  .stat-grid input{text-align:center;padding:7px 4px;font-size:13.5px;}
+  .stat-grid input.hasA{border-color:rgba(95,201,184,0.55);box-shadow:inset 0 0 0 1px rgba(95,201,184,0.18);}
+  .sum-note{margin-top:10px;font-size:12px;color:var(--text-muted);}
+  .sum-note.warn{color:var(--danger);}
+  .sum-note.good{color:var(--ok);}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;}
+
+  details.opt{border:1px dashed var(--line);border-radius:12px;padding:0;margin-bottom:18px;background:rgba(0,0,0,0.12);}
+  details.opt > summary{
+    list-style:none;cursor:pointer;padding:14px 18px;font-size:14px;color:var(--gold-bright);
+    font-family:'Kosugi Maru',sans-serif;
+  }
+  details.opt > summary::-webkit-details-marker{display:none;}
+  details.opt > summary::before{content:'＋ ';color:var(--gold);}
+  details.opt[open] > summary::before{content:'− ';}
+  details.opt .inner{padding:0 18px 18px;}
+
+  button.primary{
+    width:100%;
+    background:linear-gradient(180deg, var(--gold-bright), var(--gold));
+    color:#2a2008;border:none;
+    font-family:'Kosugi Maru', sans-serif;
+    font-size:16px;font-weight:700;
+    padding:14px;border-radius:12px;cursor:pointer;letter-spacing:.03em;
+    box-shadow:0 8px 20px rgba(212,175,106,0.25);
+  }
+  button.primary:active{transform:translateY(1px);}
+  button.ghost{
+    background:transparent;border:1px solid var(--line);color:var(--text-muted);
+    border-radius:9px;padding:7px 12px;font-size:12.5px;font-family:inherit;cursor:pointer;
+  }
+
+  #result{margin-top:18px;}
+  .result-card{
+    background:linear-gradient(180deg, var(--surface), var(--surface-2) 180%);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px 20px 20px;margin-bottom:14px;
+  }
+  .result-title{font-family:'Kosugi Maru', sans-serif;color:var(--gold-bright);font-size:17px;margin:0 0 4px;}
+  .result-sub{color:var(--text-muted);font-size:12.5px;margin:0 0 14px;line-height:1.7;}
+  table.res{width:100%;border-collapse:collapse;font-size:13.5px;}
+  table.res th, table.res td{padding:8px 6px;border-bottom:1px solid rgba(255,255,255,0.07);text-align:center;}
+  table.res th{color:var(--text-muted);font-weight:500;font-size:12px;}
+  table.res td.stat-name{text-align:left;color:var(--text);font-weight:700;}
+  .scroll-x{overflow-x:auto;}
+  .badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12.5px;font-weight:700;}
+  .badge.hit{background:rgba(111,207,142,0.16);color:var(--ok);}
+  .badge.miss{background:rgba(226,102,90,0.16);color:var(--danger);}
+  .badge.fixed{background:rgba(147,168,189,0.14);color:var(--text-muted);}
+  .cand-list{font-weight:700;color:var(--gold-bright);}
+  .msg{
+    padding:12px 14px;border-radius:10px;font-size:13.5px;line-height:1.7;
+    background:rgba(226,102,90,0.1);color:#f3b6ae;border:1px solid rgba(226,102,90,0.3);
+    margin-bottom:14px;
+  }
+  .msg.info{background:rgba(95,201,184,0.1);color:#bdeee6;border-color:rgba(95,201,184,0.3);}
+  .combo-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px;}
+  .combo-count{font-size:12.5px;color:var(--text-muted);}
+  table.combo{width:100%;border-collapse:collapse;font-size:13px;min-width:430px;}
+  table.combo th{color:var(--gold);font-size:12px;padding:6px 4px;border-bottom:1px solid var(--line);}
+  table.combo td{padding:6px 4px;border-bottom:1px solid rgba(255,255,255,0.06);text-align:center;}
+  table.combo td.idx{color:var(--text-muted);font-size:11.5px;}
+  table.combo .b1v{color:var(--gold-bright);font-weight:700;}
+  table.combo .av{color:var(--teal);}
+  footer{text-align:center;color:var(--text-muted);font-size:11.5px;margin-top:26px;line-height:1.8;}
+  @media (max-width:430px){
+    .stat-grid{grid-template-columns: 62px repeat(5, 1fr);}
+    .row2,.row3{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="medal"><span>妖</span></div>
+    <div>
+      <h1>個体値 逆算ツール</h1>
+      <p>妖怪・レベル・性格・ゲーム内ステータスを入れるだけ。個体値B_1 と個体値A を同時に割り出します。</p>
+    </div>
+  </header>
+
+  <!-- ① 妖怪 -->
+  <div class="card">
+    <div class="step"><span class="num">①</span><h2>妖怪を選ぶ</h2></div>
+    <p class="hint">名前・ふりがなの一部を入力すると候補が絞り込まれます。</p>
+    <div class="picker">
+      <input type="text" id="yokaiSearch" placeholder="例：じばにゃん / ふりがなも可" autocomplete="off">
+      <div class="picker-list" id="yokaiList"></div>
+    </div>
+    <div class="selected-yokai" id="selectedYokaiInfo"></div>
+  </div>
+
+  <!-- ② レベル・性格 -->
+  <div class="card">
+    <div class="step"><span class="num">②</span><h2>レベルと性格</h2></div>
+    <div class="row3">
+      <div>
+        <label for="level">レベル</label>
+        <input type="number" id="level" min="1" max="99" value="99">
+      </div>
+      <div>
+        <label for="characteristics">性格</label>
+        <select id="characteristics"></select>
+      </div>
+      <div>
+        <label for="b1sum">個体値B_1の合計</label>
+        <input type="number" id="b1sum" min="0" max="30" value="10">
+      </div>
+    </div>
+    <p class="hint" style="margin:12px 0 0;">性格ボーナスは下の欄に自動で入ります。性格が分からないときは「手動入力」で直接編集できます。</p>
+    <div class="stat-grid" id="cbGrid" style="margin-top:10px;"></div>
+    <p class="sum-note" id="cbSumNote"></p>
+  </div>
+
+  <!-- ③ 実測ステータス -->
+  <div class="card">
+    <div class="step"><span class="num">③</span><h2>ゲーム内のステータス</h2></div>
+    <p class="hint">ステータス画面の数値をそのまま入力します。<strong>5項目すべて埋めるほど絞り込めます。</strong>空欄の項目は「不明」として扱います。</p>
+    <div class="stat-grid" id="actualGrid"></div>
+  </div>
+
+  <!-- 追加条件 -->
+  <details class="opt" id="advanced">
+    <summary>追加の条件を入れる（個体値B_2・判明しているB_1）</summary>
+    <div class="inner">
+      <p class="hint">修行などで個体値B_2 が付いている場合のみ入力します。B_1 が一部分かっている場合はそこだけ入れると候補が一気に減ります。</p>
+      <label style="margin-bottom:6px;">個体値B_2</label>
+      <div class="stat-grid" id="ivb2Grid"></div>
+      <label style="margin:16px 0 6px;">判明している個体値B_1（分からない欄は空のまま）</label>
+      <div class="stat-grid" id="ivb1Grid"></div>
+    </div>
+  </details>
+
+  <!-- 2回目の測定 -->
+  <details class="opt" id="second">
+    <summary>2回目の測定を加えて絞り込む（別レベル・別性格）</summary>
+    <div class="inner">
+      <p class="hint">同じ妖怪を別のレベルや別の性格で測ったステータスがあると、候補をほぼ1つに絞れます。</p>
+      <div class="row2">
+        <div>
+          <label for="level2">レベル（2回目）</label>
+          <input type="number" id="level2" min="1" max="99" value="50">
+        </div>
+        <div>
+          <label for="characteristics2">性格（2回目）</label>
+          <select id="characteristics2"></select>
+        </div>
+      </div>
+      <label style="margin:16px 0 6px;">性格ボーナス（2回目）</label>
+      <div class="stat-grid" id="cb2Grid"></div>
+      <label style="margin:16px 0 6px;">個体値B_2（2回目）</label>
+      <div class="stat-grid" id="ivb2bGrid"></div>
+      <label style="margin:16px 0 6px;">ゲーム内のステータス（2回目）</label>
+      <div class="stat-grid" id="actual2Grid"></div>
+      <p class="hint" style="margin-top:12px;">この欄をすべて空にすると、2回目の測定は無視されます。</p>
+    </div>
+  </details>
+
+  <button class="primary" id="calcBtn">個体値B_1とAを求める</button>
+
+  <div id="result"></div>
+
+  <footer>
+    配布中の「Status Calculator for Yokai Watch」(calc.js) の計算式をそのまま使い、<br>
+    ステータスから個体値B_1・A を同時に逆算できるよう作り直したものです。ボス妖怪は対象外です。
+  </footer>
+</div>
+
+<script>
+/* =========================================================
+   データ（calc.js 由来。class:0 のボス妖怪は除外済み）
+   ========================================================= */
+var yokaiData = [
+    {"num": 1, "name": "ぶようじん坊", "furigana": "ぶようじんぼう", "bs": [29, 27, 19, 17, 26], "growPat": [2, 2, 3, 0, 0], "class": 1},
+    {"num": 2, "name": "がらあきん坊", "furigana": "がらあきんぼう", "bs": [36, 33, 21, 18, 30], "growPat": [2, 2, 3, 0, 0], "class": 1},
+    {"num": 3, "name": "さきがけの助", "furigana": "さきがけのすけ", "bs": [43, 36, 24, 18, 30], "growPat": [1, 1, 0, 0, 0], "class": 1},
+    {"num": 4, "name": "ダラケ刀", "furigana": "だらけとう", "bs": [27, 26, 20, 23, 21], "growPat": [2, 2, 0, 0, 0], "class": 1},
+    {"num": 5, "name": "ザンバラ刀", "furigana": "ざんばらとう", "bs": [34, 28, 22, 28, 26], "growPat": [2, 2, 0, 0, 0], "class": 1},
+    {"num": 6, "name": "ダララだんびら", "furigana": "だららだんびら", "bs": [38, 31, 24, 29, 30], "growPat": [1, 1, 2, 2, 2], "class": 1},
+    {"num": 7, "name": "ちからモチ", "furigana": "ちからもち", "bs": [34, 30, 17, 25, 21], "growPat": [0, 2, 3, 0, 3], "class": 1},
+    {"num": 8, "name": "やきモチ", "furigana": "やきもち", "bs": [37, 32, 13, 28, 17], "growPat": [0, 2, 3, 0, 3], "class": 1},
+    {"num": 9, "name": "カブトさん", "furigana": "かぶとさん", "bs": [33, 29, 17, 30, 19], "growPat": [0, 2, 3, 0, 0], "class": 1},
+    {"num": 10, "name": "ゲンマ将軍", "furigana": "げんましょうぐん", "bs": [36, 35, 23, 30, 33], "growPat": [2, 2, 3, 2, 0], "class": 1},
+    {"num": 11, "name": "黄泉ゲンスイ", "furigana": "よみげんすい", "bs": [36, 38, 27, 32, 38], "growPat": [2, 1, 0, 2, 0], "class": 1},
+    {"num": 12, "name": "メラメライオン", "furigana": "めらめらいおん", "bs": [30, 28, 27, 20, 29], "growPat": [0, 0, 0, 0, 0], "class": 1},
+    {"num": 13, "name": "グラグライオン", "furigana": "ぐらぐらいおん", "bs": [30, 32, 28, 23, 29], "growPat": [0, 0, 0, 0, 0], "class": 1},
+    {"num": 14, "name": "轟獅子", "furigana": "とどろきじし", "bs": [31, 35, 31, 29, 38], "growPat": [2, 2, 2, 2, 2], "class": 1},
+    {"num": 15, "name": "しょうブシ", "furigana": "しょうぶし", "bs": [31, 29, 24, 21, 27], "growPat": [2, 2, 0, 3, 0], "class": 1},
+    {"num": 16, "name": "まさむね", "furigana": "まさむね", "bs": [37, 38, 23, 22, 37], "growPat": [2, 2, 0, 3, 0], "class": 1},
+    {"num": 17, "name": "むらまさ", "furigana": "むらまさ", "bs": [33, 36, 29, 23, 36], "growPat": [2, 2, 0, 3, 0], "class": 1},
+    {"num": 18, "name": "くさなぎ", "furigana": "くさなぎ", "bs": [33, 44, 25, 27, 42], "growPat": [2, 1, 0, 3, 2], "class": 1},
+    {"num": 19, "name": "ベンケイ", "furigana": "べんけい", "bs": [35, 39, 18, 26, 30], "growPat": [2, 2, 3, 0, 0], "class": 1},
+    {"num": 20, "name": "からくりベンケイ", "furigana": "からくりべんけい", "bs": [33, 36, 22, 23, 34], "growPat": [2, 2, 3, 0, 0], "class": 1},
+    {"num": 21, "name": "やまと", "furigana": "やまと", "bs": [34, 33, 22, 25, 30], "growPat": [2, 2, 3, 3, 2], "class": 1},
+    {"num": 22, "name": "カブキ猿", "furigana": "かぶきざる", "bs": [34, 33, 23, 25, 37], "growPat": [2, 2, 2, 3, 0], "class": 1},
+    {"num": 23, "name": "クワノ武士", "furigana": "くわのぶし", "bs": [33, 30, 23, 29, 32], "growPat": [2, 0, 3, 2, 0], "class": 1},
+    {"num": 24, "name": "クワガ大将", "furigana": "くわがたいしょう", "bs": [39, 39, 24, 28, 32], "growPat": [2, 0, 3, 2, 0], "class": 1},
+    {"num": 25, "name": "オオクワノ神", "furigana": "おおくわのかみ", "bs": [43, 40, 25, 31, 35], "growPat": [2, 0, 3, 2, 0], "class": 1},
+    {"num": 26, "name": "くしゃ武者", "furigana": "くしゃむしゃ", "bs": [36, 38, 21, 31, 40], "growPat": [0, 2, 3, 0, 0], "class": 1},
+    {"num": 27, "name": "なまはげ", "furigana": "なまはげ", "bs": [37, 41, 24, 33, 39], "growPat": [2, 1, 0, 0, 0], "class": 1},
+    {"num": 28, "name": "ズルズルづる", "furigana": "ずるずるづる", "bs": [24, 18, 26, 24, 27], "growPat": [0, 3, 2, 0, 2], "class": 2},
+    {"num": 29, "name": "かぜカモ", "furigana": "かぜかも", "bs": [25, 19, 27, 24, 27], "growPat": [0, 3, 2, 0, 2], "class": 2},
+    {"num": 30, "name": "わすれん帽", "furigana": "わすれんぼう", "bs": [23, 15, 28, 16, 37], "growPat": [2, 2, 2, 2, 2], "class": 2},
+    {"num": 31, "name": "ばか頭巾", "furigana": "ばかずきん", "bs": [22, 19, 21, 20, 35], "growPat": [2, 2, 2, 2, 2], "class": 2},
+    {"num": 32, "name": "つづかな僧", "furigana": "つづかなそう", "bs": [26, 18, 27, 20, 25], "growPat": [0, 2, 2, 3, 0], "class": 2},
+    {"num": 33, "name": "やめたい師", "furigana": "やめたいし", "bs": [32, 22, 34, 20, 29], "growPat": [0, 2, 2, 3, 0], "class": 2},
+    {"num": 34, "name": "もうせん和尚", "furigana": "もうせんおしょう", "bs": [34, 23, 36, 22, 29], "growPat": [2, 1, 1, 0, 2], "class": 2},
+    {"num": 35, "name": "わらえ姉", "furigana": "わらえねえ", "bs": [26, 20, 29, 24, 28], "growPat": [0, 3, 2, 0, 0], "class": 2},
+    {"num": 36, "name": "青くちびる", "furigana": "あおくちびる", "bs": [31, 22, 31, 25, 30], "growPat": [0, 3, 2, 0, 0], "class": 2},
+    {"num": 37, "name": "バクロ婆", "furigana": "ばくろばあ", "bs": [27, 21, 31, 22, 28], "growPat": [0, 3, 2, 0, 2], "class": 2},
+    {"num": 38, "name": "ババァーン", "furigana": "ばばぁーん", "bs": [30, 22, 39, 24, 34], "growPat": [0, 3, 2, 0, 2], "class": 2},
+    {"num": 39, "name": "ドクロ婆", "furigana": "どくろばあ", "bs": [30, 22, 32, 25, 33], "growPat": [2, 0, 1, 2, 1], "class": 2},
+    {"num": 40, "name": "モテモ天", "furigana": "もてもてん", "bs": [26, 20, 30, 22, 31], "growPat": [0, 0, 2, 0, 2], "class": 2},
+    {"num": 41, "name": "モテマクール", "furigana": "もてまくーる", "bs": [33, 25, 39, 26, 35], "growPat": [0, 0, 2, 0, 2], "class": 2},
+    {"num": 42, "name": "モテヌス", "furigana": "もてぬす", "bs": [31, 23, 43, 24, 37], "growPat": [0, 0, 2, 0, 2], "class": 2},
+    {"num": 43, "name": "でんぱく小僧", "furigana": "でんぱくこぞう", "bs": [24, 24, 28, 22, 26], "growPat": [0, 0, 2, 0, 0], "class": 2},
+    {"num": 44, "name": "でんじん", "furigana": "でんじん", "bs": [30, 29, 36, 29, 28], "growPat": [0, 0, 2, 0, 0], "class": 2},
+    {"num": 45, "name": "はつでんしん", "furigana": "はつでんしん", "bs": [33, 34, 41, 32, 34], "growPat": [2, 2, 1, 0, 2], "class": 2},
+    {"num": 46, "name": "うんがい鏡", "furigana": "うんがいきょう", "bs": [30, 20, 34, 30, 25], "growPat": [2, 3, 1, 2, 2], "class": 2},
+    {"num": 47, "name": "ヤミ鏡", "furigana": "やみかがみ", "bs": [31, 23, 38, 38, 24], "growPat": [0, 0, 0, 2, 0], "class": 2},
+    {"num": 48, "name": "まぼ老師", "furigana": "まぼろうし", "bs": [27, 19, 36, 23, 29], "growPat": [0, 3, 2, 0, 0], "class": 2},
+    {"num": 49, "name": "かげ老師", "furigana": "かげろうし", "bs": [24, 17, 41, 20, 32], "growPat": [0, 3, 2, 0, 0], "class": 2},
+    {"num": 50, "name": "ほう老師", "furigana": "ほうろうし", "bs": [29, 21, 38, 26, 34], "growPat": [0, 3, 2, 0, 0], "class": 2},
+    {"num": 51, "name": "さとりちゃん", "furigana": "さとりちゃん", "bs": [31, 25, 32, 24, 32], "growPat": [2, 0, 2, 3, 2], "class": 2},
+    {"num": 52, "name": "よつめ", "furigana": "よつめ", "bs": [30, 22, 36, 21, 33], "growPat": [2, 3, 2, 0, 2], "class": 2},
+    {"num": 53, "name": "天狗", "furigana": "てんぐ", "bs": [29, 27, 27, 26, 22], "growPat": [2, 2, 3, 0, 1], "class": 2},
+    {"num": 54, "name": "ほむら天狗", "furigana": "ほむらてんぐ", "bs": [34, 30, 33, 26, 19], "growPat": [2, 2, 3, 0, 1], "class": 2},
+    {"num": 55, "name": "キュウビ", "furigana": "きゅうび", "bs": [32, 24, 44, 31, 38], "growPat": [2, 0, 2, 0, 0], "class": 2},
+    {"num": 56, "name": "犬神", "furigana": "いぬがみ", "bs": [34, 26, 47, 30, 37], "growPat": [2, 0, 2, 0, 0], "class": 2},
+    {"num": 57, "name": "だるだるま", "furigana": "だるだるま", "bs": [30, 26, 18, 26, 17], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 58, "name": "だるまっちょ", "furigana": "だるまっちょ", "bs": [41, 30, 20, 35, 23], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 59, "name": "ゴリだるま", "furigana": "ごりだるま", "bs": [41, 37, 19, 33, 19], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 60, "name": "ムリカベ", "furigana": "むりかべ", "bs": [27, 24, 18, 28, 20], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 61, "name": "むりだ城", "furigana": "むりだじょう", "bs": [38, 29, 21, 44, 27], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 62, "name": "シロカベ", "furigana": "しろかべ", "bs": [40, 32, 17, 45, 30], "growPat": [1, 2, 0, 1, 0], "class": 3},
+    {"num": 63, "name": "ヨロイさん", "furigana": "よろいさん", "bs": [35, 26, 20, 27, 21], "growPat": [2, 0, 3, 2, 0], "class": 3},
+    {"num": 64, "name": "モレゾウ", "furigana": "もれぞう", "bs": [33, 29, 22, 29, 26], "growPat": [0, 0, 3, 2, 0], "class": 3},
+    {"num": 65, "name": "プルファント", "furigana": "ぷるふぁんと", "bs": [30, 26, 29, 31, 23], "growPat": [0, 0, 0, 2, 3], "class": 3},
+    {"num": 66, "name": "トオセンボン", "furigana": "とおせんぼん", "bs": [34, 25, 18, 30, 20], "growPat": [2, 0, 2, 2, 3], "class": 3},
+    {"num": 67, "name": "くろがねセンボン", "furigana": "くろがねせんぼん", "bs": [31, 28, 15, 28, 20], "growPat": [2, 2, 0, 2, 3], "class": 3},
+    {"num": 68, "name": "ふじのやま", "furigana": "ふじのやま", "bs": [36, 28, 21, 29, 25], "growPat": [0, 2, 3, 2, 0], "class": 3},
+    {"num": 69, "name": "さくらのじま", "furigana": "さくらのじま", "bs": [39, 32, 20, 30, 28], "growPat": [0, 2, 3, 2, 0], "class": 3},
+    {"num": 70, "name": "グレるりん", "furigana": "ぐれるりん", "bs": [25, 25, 18, 21, 26], "growPat": [2, 2, 3, 0, 0], "class": 3},
+    {"num": 71, "name": "ゴクドー", "furigana": "ごくどー", "bs": [34, 37, 16, 27, 30], "growPat": [2, 2, 3, 0, 0], "class": 3},
+    {"num": 72, "name": "アニ鬼", "furigana": "あにき", "bs": [38, 40, 20, 30, 33], "growPat": [1, 1, 0, 2, 2], "class": 3},
+    {"num": 73, "name": "武者かぶと", "furigana": "むしゃかぶと", "bs": [38, 32, 18, 33, 21], "growPat": [0, 2, 3, 2, 3], "class": 3},
+    {"num": 74, "name": "かぶと無双", "furigana": "かぶとむそう", "bs": [38, 37, 21, 36, 30], "growPat": [0, 2, 3, 2, 3], "class": 3},
+    {"num": 75, "name": "オオツノノ神", "furigana": "おおつののかみ", "bs": [43, 40, 17, 40, 34], "growPat": [2, 2, 3, 2, 0], "class": 3},
+    {"num": 76, "name": "ドウカク", "furigana": "どうかく", "bs": [33, 26, 21, 30, 24], "growPat": [0, 0, 3, 2, 0], "class": 3},
+    {"num": 77, "name": "ギンカク", "furigana": "ぎんかく", "bs": [35, 27, 19, 32, 27], "growPat": [0, 0, 3, 2, 0], "class": 3},
+    {"num": 78, "name": "キンカク", "furigana": "きんかく", "bs": [39, 27, 20, 36, 30], "growPat": [0, 0, 3, 2, 0], "class": 3},
+    {"num": 79, "name": "プラチナカク", "furigana": "ぷらちなかく", "bs": [45, 34, 23, 37, 33], "growPat": [1, 2, 0, 1, 0], "class": 3},
+    {"num": 80, "name": "ロボニャン", "furigana": "ろぼにゃん", "bs": [39, 32, 24, 35, 34], "growPat": [1, 2, 0, 1, 2], "class": 3},
+    {"num": 81, "name": "ゴルニャン", "furigana": "ごるにゃん", "bs": [44, 33, 21, 37, 39], "growPat": [1, 2, 0, 1, 2], "class": 3},
+    {"num": 82, "name": "だいだらぼっち", "furigana": "だいだらぼっち", "bs": [44, 31, 22, 48, 27], "growPat": [2, 0, 3, 2, 3], "class": 3},
+    {"num": 83, "name": "うみぼうず", "furigana": "うみぼうず", "bs": [45, 18, 34, 47, 30], "growPat": [2, 2, 2, 1, 0], "class": 3},
+    {"num": 84, "name": "しゃれこ婦人", "furigana": "しゃれこふじん", "bs": [26, 24, 16, 25, 26], "growPat": [0, 2, 3, 2, 0], "class": 4},
+    {"num": 85, "name": "カラカラさん", "furigana": "からからさん", "bs": [32, 27, 23, 29, 28], "growPat": [0, 2, 3, 2, 0], "class": 4},
+    {"num": 86, "name": "ほね美人", "furigana": "ほねびじん", "bs": [35, 29, 26, 32, 32], "growPat": [2, 2, 0, 1, 1], "class": 4},
+    {"num": 87, "name": "セミまる", "furigana": "せみまる", "bs": [24, 25, 21, 19, 26], "growPat": [2, 2, 3, 3, 2], "class": 4},
+    {"num": 88, "name": "カゲまる", "furigana": "かげまる", "bs": [32, 33, 27, 21, 31], "growPat": [2, 2, 3, 3, 2], "class": 4},
+    {"num": 89, "name": "ヒグラシまる", "furigana": "ひぐらしまる", "bs": [35, 34, 29, 20, 36], "growPat": [2, 2, 2, 0, 2], "class": 4},
+    {"num": 90, "name": "さむガリ", "furigana": "さむがり", "bs": [24, 23, 25, 19, 24], "growPat": [0, 3, 2, 0, 2], "class": 4},
+    {"num": 91, "name": "ガリ王子", "furigana": "がりおうじ", "bs": [32, 37, 34, 26, 33], "growPat": [0, 3, 2, 0, 2], "class": 4},
+    {"num": 92, "name": "あつガルル", "furigana": "あつがるる", "bs": [36, 35, 38, 30, 35], "growPat": [2, 2, 1, 0, 1], "class": 4},
+    {"num": 93, "name": "ジバニャン", "furigana": "じばにゃん", "bs": [30, 20, 19, 24, 35], "growPat": [0, 2, 3, 0, 2], "class": 4},
+    {"num": 94, "name": "トゲニャン", "furigana": "とげにゃん", "bs": [33, 24, 20, 27, 38], "growPat": [0, 2, 3, 0, 2], "class": 4},
+    {"num": 95, "name": "ワルニャン", "furigana": "わるにゃん", "bs": [35, 33, 15, 30, 36], "growPat": [0, 2, 3, 0, 2], "class": 4},
+    {"num": 96, "name": "ノガッパ", "furigana": "のがっぱ", "bs": [28, 22, 29, 22, 28], "growPat": [0, 0, 2, 3, 2], "class": 4},
+    {"num": 97, "name": "たびガッパ", "furigana": "たびがっぱ", "bs": [38, 37, 29, 24, 31], "growPat": [0, 0, 2, 3, 2], "class": 4},
+    {"num": 98, "name": "なみガッパ", "furigana": "なみがっぱ", "bs": [39, 34, 34, 25, 32], "growPat": [2, 2, 1, 0, 1], "class": 4},
+    {"num": 99, "name": "コマさん", "furigana": "こまさん", "bs": [25, 22, 30, 23, 27], "growPat": [2, 3, 2, 0, 2], "class": 4},
+    {"num": 100, "name": "ししコマ", "furigana": "ししこま", "bs": [35, 26, 39, 23, 36], "growPat": [2, 3, 2, 0, 2], "class": 4},
+    {"num": 101, "name": "コマじろう", "furigana": "こまじろう", "bs": [25, 26, 27, 24, 25], "growPat": [2, 0, 0, 0, 2], "class": 4},
+    {"num": 102, "name": "とらじろう", "furigana": "とらじろう", "bs": [31, 30, 34, 24, 33], "growPat": [2, 0, 0, 0, 2], "class": 4},
+    {"num": 103, "name": "バク", "furigana": "ばく", "bs": [24, 22, 28, 23, 27], "growPat": [2, 3, 2, 0, 2], "class": 4},
+    {"num": 104, "name": "ハク", "furigana": "はく", "bs": [26, 25, 31, 26, 29], "growPat": [2, 3, 2, 2, 0], "class": 4},
+    {"num": 105, "name": "キュン太郎", "furigana": "きゅんたろう", "bs": [26, 22, 31, 24, 29], "growPat": [0, 3, 2, 3, 2], "class": 4},
+    {"num": 106, "name": "ズキュキュン太", "furigana": "ずきゅきゅんた", "bs": [31, 22, 39, 26, 36], "growPat": [0, 3, 2, 3, 2], "class": 4},
+    {"num": 107, "name": "裏キュン太", "furigana": "うらきゅんた", "bs": [35, 28, 34, 29, 38], "growPat": [2, 2, 2, 2, 2], "class": 4},
+    {"num": 108, "name": "ゆきおんな", "furigana": "ゆきおんな", "bs": [32, 22, 37, 25, 33], "growPat": [0, 0, 2, 3, 0], "class": 4},
+    {"num": 109, "name": "ふぶき姫", "furigana": "ふぶきひめ", "bs": [36, 27, 43, 29, 34], "growPat": [0, 0, 2, 3, 0], "class": 4},
+    {"num": 110, "name": "百鬼姫", "furigana": "ひゃっきひめ", "bs": [39, 33, 41, 31, 30], "growPat": [0, 0, 2, 3, 0], "class": 4},
+    {"num": 111, "name": "ワカメくん", "furigana": "わかめくん", "bs": [24, 22, 26, 20, 27], "growPat": [2, 2, 3, 0, 0], "class": 5},
+    {"num": 112, "name": "コンブさん", "furigana": "こんぶさん", "bs": [26, 20, 24, 24, 25], "growPat": [2, 3, 0, 2, 0], "class": 5},
+    {"num": 113, "name": "メカブちゃん", "furigana": "めかぶちゃん", "bs": [28, 19, 28, 23, 31], "growPat": [0, 0, 2, 3, 2], "class": 5},
+    {"num": 114, "name": "うらやましろう", "furigana": "うらやましろう", "bs": [26, 25, 23, 20, 26], "growPat": [2, 2, 0, 3, 2], "class": 5},
+    {"num": 115, "name": "つまみぐいのすけ", "furigana": "つまみぐいのすけ", "bs": [29, 28, 23, 21, 28], "growPat": [2, 2, 0, 3, 2], "class": 5},
+    {"num": 116, "name": "ひも爺", "furigana": "ひもじい", "bs": [25, 22, 26, 20, 24], "growPat": [0, 0, 2, 3, 0], "class": 5},
+    {"num": 117, "name": "くいい爺", "furigana": "くいいじい", "bs": [32, 35, 30, 26, 26], "growPat": [0, 0, 2, 3, 0], "class": 5},
+    {"num": 118, "name": "こめ爺", "furigana": "こめじい", "bs": [34, 28, 37, 26, 29], "growPat": [2, 2, 1, 0, 2], "class": 5},
+    {"num": 119, "name": "びんボーイ", "furigana": "びんぼーい", "bs": [27, 22, 29, 24, 27], "growPat": [2, 2, 0, 2, 0], "class": 5},
+    {"num": 120, "name": "らくてん童", "furigana": "らくてんどう", "bs": [29, 25, 27, 27, 29], "growPat": [2, 0, 2, 0, 2], "class": 5},
+    {"num": 121, "name": "ぜっこう蝶", "furigana": "ぜっこうちょう", "bs": [25, 24, 28, 21, 29], "growPat": [0, 3, 2, 3, 2], "class": 5},
+    {"num": 122, "name": "ゼッコウ蝶", "furigana": "ぜっこうちょう", "bs": [26, 20, 30, 22, 26], "growPat": [0, 3, 2, 3, 2], "class": 5},
+    {"num": 123, "name": "サイコウ蝶", "furigana": "さいこうちょう", "bs": [35, 25, 39, 25, 35], "growPat": [0, 3, 2, 3, 2], "class": 5},
+    {"num": 124, "name": "アゲアゲハ", "furigana": "あげあげは", "bs": [39, 27, 42, 27, 39], "growPat": [2, 2, 2, 2, 2], "class": 5},
+    {"num": 125, "name": "ホノボーノ", "furigana": "ほのぼーの", "bs": [27, 23, 29, 25, 28], "growPat": [0, 3, 2, 0, 2], "class": 5},
+    {"num": 126, "name": "ヒョウヘンヌ", "furigana": "ひょうへんぬ", "bs": [31, 29, 36, 29, 32], "growPat": [0, 3, 2, 0, 2], "class": 5},
+    {"num": 127, "name": "ヒョウヘンナ", "furigana": "ひょうへんな", "bs": [35, 32, 37, 26, 34], "growPat": [2, 2, 1, 2, 2], "class": 5},
+    {"num": 128, "name": "サンタク老師", "furigana": "さんたくろうし", "bs": [28, 27, 30, 26, 31], "growPat": [2, 0, 0, 0, 2], "class": 5},
+    {"num": 129, "name": "ふくろじじい", "furigana": "ふくろじじい", "bs": [31, 26, 30, 28, 27], "growPat": [2, 0, 2, 0, 0], "class": 5},
+    {"num": 130, "name": "さいの目入道", "furigana": "さいのめにゅうどう", "bs": [33, 31, 31, 31, 31], "growPat": [0, 2, 3, 2, 0], "class": 5},
+    {"num": 131, "name": "ゾロ目大明神", "furigana": "ぞろめだいみょうじん", "bs": [36, 28, 28, 32, 33], "growPat": [2, 3, 0, 0, 2], "class": 5},
+    {"num": 132, "name": "雷オトン", "furigana": "らいおとん", "bs": [33, 32, 29, 30, 35], "growPat": [2, 2, 3, 3, 0], "class": 5},
+    {"num": 133, "name": "絶オジイ", "furigana": "ぜつおじい", "bs": [39, 37, 31, 31, 36], "growPat": [1, 1, 0, 2, 0], "class": 5},
+    {"num": 134, "name": "聖オカン", "furigana": "せいおかん", "bs": [36, 29, 36, 28, 38], "growPat": [0, 3, 2, 3, 2], "class": 5},
+    {"num": 135, "name": "心オバア", "furigana": "しんおばあ", "bs": [39, 31, 38, 27, 39], "growPat": [0, 3, 2, 3, 2], "class": 5},
+    {"num": 136, "name": "みちび鬼", "furigana": "みちびき", "bs": [26, 26, 18, 25, 24], "growPat": [2, 2, 3, 2, 2], "class": 6},
+    {"num": 137, "name": "えこひい鬼", "furigana": "えこひいき", "bs": [28, 29, 19, 27, 26], "growPat": [2, 2, 3, 2, 2], "class": 6},
+    {"num": 138, "name": "かたのり小僧", "furigana": "かたのりこぞう", "bs": [24, 25, 22, 20, 26], "growPat": [0, 2, 0, 3, 2], "class": 6},
+    {"num": 139, "name": "かたのり親方", "furigana": "かたのりおやかた", "bs": [32, 32, 23, 25, 27], "growPat": [0, 2, 0, 3, 2], "class": 6},
+    {"num": 140, "name": "ぎっくり男", "furigana": "ぎっくりおとこ", "bs": [35, 36, 23, 27, 33], "growPat": [1, 1, 2, 0, 2], "class": 6},
+    {"num": 141, "name": "ネガティブーン", "furigana": "ねがてぃぶーん", "bs": [23, 26, 20, 22, 25], "growPat": [0, 2, 3, 0, 2], "class": 6},
+    {"num": 142, "name": "ジャネガブーン", "furigana": "じゃねがぶーん", "bs": [31, 29, 22, 24, 33], "growPat": [0, 2, 3, 0, 2], "class": 6},
+    {"num": 143, "name": "かゆかゆ", "furigana": "かゆかゆ", "bs": [37, 34, 27, 29, 37], "growPat": [2, 1, 0, 2, 1], "class": 6},
+    {"num": 144, "name": "ジミー", "furigana": "じみー", "bs": [24, 24, 23, 18, 28], "growPat": [0, 2, 0, 3, 2], "class": 6},
+    {"num": 145, "name": "カゲロー", "furigana": "かげろー", "bs": [31, 32, 31, 20, 35], "growPat": [0, 2, 0, 3, 2], "class": 6},
+    {"num": 146, "name": "カイム", "furigana": "かいむ", "bs": [33, 35, 34, 20, 37], "growPat": [0, 2, 0, 3, 2], "class": 6},
+    {"num": 147, "name": "ヒキコウモリ", "furigana": "ひきこうもり", "bs": [27, 22, 26, 29, 25], "growPat": [2, 3, 0, 3, 2], "class": 6},
+    {"num": 148, "name": "トジコウモリ", "furigana": "とじこうもり", "bs": [29, 30, 31, 37, 30], "growPat": [2, 3, 0, 3, 2], "class": 6},
+    {"num": 149, "name": "ヤドコウモリ", "furigana": "やどこうもり", "bs": [30, 31, 32, 40, 31], "growPat": [1, 0, 2, 0, 1], "class": 6},
+    {"num": 150, "name": "ぎしんあん鬼", "furigana": "ぎしんあんき", "bs": [20, 25, 26, 26, 27], "growPat": [0, 0, 2, 0, 2], "class": 6},
+    {"num": 151, "name": "ガ鬼", "furigana": "がき", "bs": [22, 29, 19, 29, 25], "growPat": [2, 2, 3, 2, 0], "class": 6},
+    {"num": 152, "name": "あまのじゃく", "furigana": "あまのじゃく", "bs": [25, 28, 33, 31, 29], "growPat": [2, 0, 2, 2, 3], "class": 6},
+    {"num": 153, "name": "ネクラマテング", "furigana": "ねくらまてんぐ", "bs": [28, 21, 32, 23, 30], "growPat": [2, 3, 2, 0, 2], "class": 6},
+    {"num": 154, "name": "ヨミテング", "furigana": "よみてんぐ", "bs": [30, 23, 34, 25, 32], "growPat": [0, 3, 2, 3, 1], "class": 6},
+    {"num": 155, "name": "魔ガサス", "furigana": "まがさす", "bs": [30, 23, 39, 28, 39], "growPat": [2, 0, 2, 0, 1], "class": 6},
+    {"num": 156, "name": "ウ魔", "furigana": "うま", "bs": [36, 31, 28, 33, 36], "growPat": [2, 2, 2, 0, 2], "class": 6},
+    {"num": 157, "name": "デビビル", "furigana": "でびびる", "bs": [26, 37, 29, 33, 32], "growPat": [2, 2, 3, 3, 0], "class": 6},
+    {"num": 158, "name": "デビビラン", "furigana": "でびびらん", "bs": [28, 33, 31, 35, 35], "growPat": [2, 2, 3, 3, 0], "class": 6},
+    {"num": 159, "name": "虫歯伯爵", "furigana": "むしばはくしゃく", "bs": [44, 35, 33, 23, 39], "growPat": [2, 2, 3, 3, 0], "class": 6},
+    {"num": 160, "name": "ドケチング", "furigana": "どけちんぐ", "bs": [37, 27, 41, 32, 35], "growPat": [0, 3, 2, 3, 0], "class": 6},
+    {"num": 161, "name": "ヤミまろ", "furigana": "やみまろ", "bs": [40, 29, 39, 34, 32], "growPat": [2, 0, 1, 0, 2], "class": 6},
+    {"num": 162, "name": "イガイガグリ", "furigana": "いがいがぐり", "bs": [28, 23, 17, 25, 26], "growPat": [2, 0, 0, 2, 2], "class": 7},
+    {"num": 163, "name": "チクチクウニ", "furigana": "ちくちくうに", "bs": [30, 25, 16, 26, 25], "growPat": [2, 2, 0, 2, 0], "class": 7},
+    {"num": 164, "name": "ヨコドリ", "furigana": "よこどり", "bs": [25, 18, 26, 28, 22], "growPat": [2, 3, 2, 2, 0], "class": 7},
+    {"num": 165, "name": "はらおドリ", "furigana": "はらおどり", "bs": [28, 20, 27, 30, 24], "growPat": [2, 3, 2, 2, 0], "class": 7},
+    {"num": 166, "name": "トホホギス", "furigana": "とほほぎす", "bs": [26, 19, 27, 22, 25], "growPat": [0, 0, 2, 3, 2], "class": 7},
+    {"num": 167, "name": "ブカッコウ", "furigana": "ぶかっこう", "bs": [30, 22, 32, 24, 31], "growPat": [0, 0, 2, 3, 2], "class": 7},
+    {"num": 168, "name": "死神鳥", "furigana": "しにがみどり", "bs": [38, 32, 32, 28, 34], "growPat": [2, 2, 1, 2, 2], "class": 7},
+    {"num": 169, "name": "じんめん犬", "furigana": "じんめんけん", "bs": [24, 25, 23, 20, 25], "growPat": [0, 2, 0, 3, 2], "class": 7},
+    {"num": 170, "name": "かおベロス", "furigana": "かおべろす", "bs": [32, 34, 26, 25, 30], "growPat": [0, 2, 0, 3, 2], "class": 7},
+    {"num": 171, "name": "三途の犬", "furigana": "さんずのいぬ", "bs": [35, 38, 28, 30, 33], "growPat": [1, 1, 2, 0, 2], "class": 7},
+    {"num": 172, "name": "じめりんぼう", "furigana": "じめりんぼう", "bs": [22, 23, 26, 24, 22], "growPat": [0, 0, 2, 0, 2], "class": 7},
+    {"num": 173, "name": "雨ふらし", "furigana": "あめふらし", "bs": [28, 25, 30, 28, 31], "growPat": [0, 0, 2, 0, 2], "class": 7},
+    {"num": 174, "name": "こおりんぼう", "furigana": "こおりんぼう", "bs": [24, 22, 24, 26, 21], "growPat": [0, 0, 2, 2, 0], "class": 7},
+    {"num": 175, "name": "化けあられ", "furigana": "ばけあられ", "bs": [30, 20, 31, 34, 27], "growPat": [0, 0, 2, 2, 0], "class": 7},
+    {"num": 176, "name": "たらりん", "furigana": "たらりん", "bs": [27, 24, 29, 23, 31], "growPat": [2, 2, 1, 1, 2], "class": 7},
+    {"num": 177, "name": "口だけおんな", "furigana": "くちだけおんな", "bs": [29, 23, 29, 21, 27], "growPat": [2, 0, 0, 3, 2], "class": 7},
+    {"num": 178, "name": "おつぼね様", "furigana": "おつぼねさま", "bs": [31, 34, 20, 25, 29], "growPat": [2, 2, 3, 0, 2], "class": 7},
+    {"num": 179, "name": "ドンヨリーヌ", "furigana": "どんよりーぬ", "bs": [30, 22, 26, 28, 23], "growPat": [2, 0, 2, 2, 3], "class": 7},
+    {"num": 180, "name": "おならず者", "furigana": "おならずもの", "bs": [26, 27, 26, 23, 30], "growPat": [0, 0, 0, 3, 2], "class": 7},
+    {"num": 181, "name": "へこ鬼神", "furigana": "へこきじん", "bs": [32, 33, 30, 28, 36], "growPat": [0, 0, 0, 3, 2], "class": 7},
+    {"num": 182, "name": "おすべり様", "furigana": "おすべりさま", "bs": [32, 27, 32, 29, 37], "growPat": [2, 3, 0, 3, 2], "class": 7},
+    {"num": 183, "name": "おしっしょう", "furigana": "おしっしょう", "bs": [37, 26, 28, 26, 35], "growPat": [2, 3, 0, 3, 2], "class": 7},
+    {"num": 184, "name": "しわくちゃん", "furigana": "しわくちゃん", "bs": [32, 25, 35, 24, 33], "growPat": [0, 0, 3, 2, 0], "class": 7},
+    {"num": 185, "name": "老いらん", "furigana": "おいらん", "bs": [40, 27, 40, 29, 36], "growPat": [0, 0, 3, 2, 0], "class": 7},
+    {"num": 186, "name": "ふじみ御前", "furigana": "ふじみごぜん", "bs": [43, 26, 40, 27, 38], "growPat": [0, 0, 3, 2, 0], "class": 7},
+    {"num": 187, "name": "フゥミン", "furigana": "ふぅみん", "bs": [35, 26, 36, 27, 38], "growPat": [2, 3, 2, 3, 2], "class": 7},
+    {"num": 188, "name": "おねむの精", "furigana": "おねむのせい", "bs": [39, 28, 38, 29, 40], "growPat": [1, 0, 1, 0, 1], "class": 7},
+    {"num": 189, "name": "ツチノコ", "furigana": "つちのこ", "bs": [29, 15, 25, 16, 39], "growPat": [1, 3, 1, 0, 1], "class": 8},
+    {"num": 190, "name": "フクリュウ", "furigana": "ふくりゅう", "bs": [33, 26, 31, 29, 46], "growPat": [1, 3, 1, 0, 1], "class": 8},
+    {"num": 191, "name": "ツチノコパンダ", "furigana": "つちのこぱんだ", "bs": [35, 28, 31, 31, 41], "growPat": [2, 2, 2, 2, 2], "class": 8},
+    {"num": 192, "name": "笑ウツボ", "furigana": "わらうつぼ", "bs": [27, 30, 21, 25, 24], "growPat": [0, 2, 3, 2, 0], "class": 8},
+    {"num": 193, "name": "歌ウナギ", "furigana": "うたうなぎ", "bs": [29, 31, 24, 26, 27], "growPat": [0, 0, 2, 3, 2], "class": 8},
+    {"num": 194, "name": "大蛇のツボ", "furigana": "だいじゃのつぼ", "bs": [30, 34, 21, 28, 24], "growPat": [2, 2, 3, 0, 0], "class": 8},
+    {"num": 195, "name": "キライギョ", "furigana": "きらいぎょ", "bs": [27, 23, 26, 25, 21], "growPat": [2, 0, 2, 0, 3], "class": 8},
+    {"num": 196, "name": "ゾウオ", "furigana": "ぞうお", "bs": [33, 29, 36, 31, 20], "growPat": [2, 0, 2, 0, 3], "class": 8},
+    {"num": 197, "name": "ギャクジョウオ", "furigana": "ぎゃくじょうお", "bs": [37, 36, 31, 35, 25], "growPat": [2, 1, 2, 2, 2], "class": 8},
+    {"num": 198, "name": "りゅーくん", "furigana": "りゅーくん", "bs": [30, 22, 28, 23, 26], "growPat": [2, 0, 0, 0, 0], "class": 8},
+    {"num": 199, "name": "龍神", "furigana": "りゅうじん", "bs": [35, 30, 32, 29, 36], "growPat": [2, 0, 0, 0, 0], "class": 8},
+    {"num": 200, "name": "青龍", "furigana": "せいりゅう", "bs": [40, 38, 32, 31, 33], "growPat": [2, 1, 0, 2, 2], "class": 8},
+    {"num": 201, "name": "ボー坊", "furigana": "ぼーぼう", "bs": [32, 15, 33, 27, 36], "growPat": [2, 2, 2, 2, 2], "class": 8},
+    {"num": 202, "name": "しどろもどろ", "furigana": "しどろもどろ", "bs": [29, 26, 35, 30, 27], "growPat": [0, 0, 0, 0, 0], "class": 8},
+    {"num": 203, "name": "ミチクサメ", "furigana": "みちくさめ", "bs": [33, 32, 20, 26, 28], "growPat": [2, 2, 3, 0, 0], "class": 8},
+    {"num": 204, "name": "トーシロザメ", "furigana": "とーしろざめ", "bs": [37, 35, 18, 31, 25], "growPat": [2, 2, 3, 2, 3], "class": 8},
+    {"num": 205, "name": "ムダヅカイ", "furigana": "むだづかい", "bs": [30, 22, 25, 34, 23], "growPat": [2, 3, 0, 2, 3], "class": 8},
+    {"num": 206, "name": "はらわシェル", "furigana": "はらわしぇる", "bs": [33, 24, 28, 43, 26], "growPat": [1, 0, 2, 1, 0], "class": 8},
+    {"num": 207, "name": "ナガバナ", "furigana": "ながばな", "bs": [32, 31, 19, 27, 30], "growPat": [2, 0, 3, 0, 0], "class": 8},
+    {"num": 208, "name": "ナガバナナ", "furigana": "ながばなな", "bs": [39, 41, 21, 32, 31], "growPat": [2, 0, 3, 0, 0], "class": 8},
+    {"num": 209, "name": "しきるん蛇", "furigana": "しきるんじゃ", "bs": [35, 28, 24, 27, 35], "growPat": [2, 0, 0, 3, 2], "class": 8},
+    {"num": 210, "name": "すねスネーク", "furigana": "すねすねーく", "bs": [33, 20, 33, 30, 28], "growPat": [2, 3, 2, 0, 0], "class": 8},
+    {"num": 211, "name": "まむし行司", "furigana": "まむしぎょうじ", "bs": [36, 32, 22, 33, 29], "growPat": [0, 2, 3, 2, 0], "class": 8},
+    {"num": 212, "name": "オロチ", "furigana": "おろち", "bs": [35, 32, 38, 25, 42], "growPat": [0, 0, 2, 0, 2], "class": 8},
+    {"num": 213, "name": "影オロチ", "furigana": "かげおろち", "bs": [38, 39, 33, 29, 35], "growPat": [0, 0, 2, 0, 2], "class": 8},
+    {"num": 214, "name": "ブシニャン", "furigana": "ぶしにゃん", "bs": [31, 39, 27, 23, 50], "growPat": [2, 2, 0, 0, 1], "class": 1},
+    {"num": 215, "name": "しゅらコマ", "furigana": "しゅらこま", "bs": [37, 25, 50, 27, 39], "growPat": [2, 0, 1, 0, 2], "class": 2},
+    {"num": 216, "name": "イケメン犬", "furigana": "いけめんけん", "bs": [43, 20, 40, 26, 47], "growPat": [2, 2, 2, 0, 2], "class": 7},
+    {"num": 217, "name": "花さか爺", "furigana": "はなさかじい", "bs": [32, 29, 41, 31, 45], "growPat": [2, 0, 2, 2, 2], "class": 5},
+    {"num": 218, "name": "山吹鬼", "furigana": "やまぶきおに", "bs": [45, 50, 18, 35, 40], "growPat": [1, 1, 0, 0, 0], "class": 3},
+    {"num": 219, "name": "サファイニャン", "furigana": "さふぁいにゃん", "bs": [33, 28, 38, 28, 36], "growPat": [2, 0, 1, 2, 2], "class": 4},
+    {"num": 220, "name": "エメラルニャン", "furigana": "えめらるにゃん", "bs": [31, 30, 34, 30, 38], "growPat": [2, 2, 2, 0, 1], "class": 4},
+    {"num": 221, "name": "ルビーニャン", "furigana": "るびーにゃん", "bs": [38, 39, 27, 27, 32], "growPat": [2, 1, 0, 2, 2], "class": 4},
+    {"num": 222, "name": "トパニャン", "furigana": "とぱにゃん", "bs": [41, 31, 28, 35, 28], "growPat": [2, 2, 2, 1, 0], "class": 4},
+    {"num": 223, "name": "ダイヤニャン", "furigana": "だいやにゃん", "bs": [35, 33, 30, 31, 34], "growPat": [2, 2, 2, 2, 2], "class": 4}
+];
+
+var characteristicsData = [
+  {"name": "なし", "bonus": [0,0,0,0,0]},
+  {"name": "短気", "bonus": [10,10,0,0,0]},
+  {"name": "荒くれ", "bonus": [0,20,0,0,0]},
+  {"name": "れいせい", "bonus": [0,0,10,0,10]},
+  {"name": "ずのう的", "bonus": [0,0,20,0,0]},
+  {"name": "しんちょう", "bonus": [0,0,10,10,0]},
+  {"name": "動じない", "bonus": [0,0,0,20,0]},
+  {"name": "やさしい", "bonus": [10,0,10,0,0]},
+  {"name": "情け深い", "bonus": [20,0,0,0,0]},
+  {"name": "いやらしい", "bonus": [0,10,0,0,10]},
+  {"name": "非道", "bonus": [0,0,0,0,20]},
+  {"name": "協力的", "bonus": [10,0,0,0,10]},
+  {"name": "けんしん的", "bonus": [0,10,0,10,0]},
+  {"name": "手動入力", "bonus": [], "inputManually": true}
+];
+
+var growPatName = ["普通", "早熟", "やや早熟", "やや晩成", "晩成", "ボス"];
+var classes = [
+  {"name": "ボス", "bs_A": [false, false, false, false, false]},
+  {"name": "イサマシ", "bs_A": [false, true, false, false, false]},
+  {"name": "フシギ", "bs_A": [false, false, true, false, false]},
+  {"name": "ゴーケツ", "bs_A": [false, false, false, true, false]},
+  {"name": "プリチー", "bs_A": [false, false, false, false, true]},
+  {"name": "ポカポカ", "bs_A": [false, false, true, true, false]},
+  {"name": "ウスラカゲ", "bs_A": [true, false, false, false, true]},
+  {"name": "ブキミー", "bs_A": [false, true, true, false, false]},
+  {"name": "ニョロロン", "bs_A": [true, false, false, false, false]}
+];
+var statusNames = [
+  {"name": "H", "displayName": "HP"},
+  {"name": "A", "displayName": "ちから"},
+  {"name": "M", "displayName": "ようりょく"},
+  {"name": "D", "displayName": "まもり"},
+  {"name": "S", "displayName": "すばやさ"}
+];
+var MAX_A = 99;
+
+/* =========================================================
+   計算式（calc.js の calcStatus をそのまま移植）
+   ========================================================= */
+var floats = new Float32Array(24);
+floats[0] = 1.0;
+floats[1] = 9604.0;
+floats[2] = 0.449999988079071044921875;
+floats[3] = 0.25;
+floats[4] = 0.010204081423580646514892578125;
+floats[5] = 98.0;
+floats[6] = 0.100000001490116119384765625;
+floats[7] = 99.0;
+floats[8] = 0.5;
+floats[9] = 0.0050505050458014011383056640625;
+floats[10] = 0.0500000007450580596923828125;
+
+function calcStatus(growPattern, bs, ivA, ivB_1, ivB_2, cb, level, isHP) {
+  floats[11] = level;
+  floats[11] = floats[11] * floats[9];
+  floats[11] = floats[11] + floats[0];
+  floats[11] = floats[11] * cb;
+  floats[23] = floats[11];
+  floats[11] = bs + ivA + ivB_1;
+  if (isHP) {
+    floats[23] = floats[23] + floats[11];
+  } else {
+    floats[23] = floats[23] + bs * floats[6];
+  }
+  floats[11] = floats[11] + ivB_2;
+  if (isHP) {
+    floats[11] = floats[11] * floats[6];
+  } else {
+    floats[11] = floats[11] * floats[10];
+  }
+  if (growPattern === 0) {
+    floats[11] = floats[11] * level;
+    floats[23] = floats[23] + floats[11];
+  } else if (growPattern === 1) {
+    floats[12] = level - floats[0];
+    floats[12] = floats[5] - floats[12];
+    floats[13] = floats[7] - (floats[12] * floats[12] * floats[12] * floats[8] / floats[1] +
+      floats[12] * floats[12] * floats[3] * floats[4] + floats[12] * floats[3]);
+    floats[11] = floats[11] * floats[13];
+    floats[23] = floats[23] + floats[11];
+  } else if (growPattern === 2) {
+    floats[12] = level - floats[0];
+    floats[12] = floats[5] - floats[12];
+    floats[13] = floats[7] - (floats[12] * floats[12] * floats[12] * floats[6] / floats[1] +
+      floats[12] * floats[12] * floats[2] * floats[4] + floats[12] * floats[2]);
+    floats[11] = floats[11] * floats[13];
+    floats[23] = floats[23] + floats[11];
+  } else if (growPattern === 3) {
+    floats[12] = level - floats[0];
+    floats[13] = floats[0] + (floats[12] * floats[12] * floats[12] * floats[6] / floats[1] +
+      floats[12] * floats[12] * floats[2] * floats[4] + floats[12] * floats[2]);
+    floats[11] = floats[11] * floats[13];
+    floats[23] = floats[23] + floats[11];
+  } else if (growPattern === 4) {
+    floats[12] = level - floats[0];
+    floats[13] = floats[0] + (floats[12] * floats[12] * floats[12] * floats[8] / floats[1] +
+      floats[12] * floats[12] * floats[3] * floats[4] + floats[12] * floats[3]);
+    floats[11] = floats[11] * floats[13];
+    floats[23] = floats[23] + floats[11];
+  } else if (growPattern === 5) {
+    floats[23] = bs;
+  } else {
+    return 0;
+  }
+  return Math.floor(floats[23]);
+}
+
+/* =========================================================
+   UI 構築
+   ========================================================= */
+var selectedYokai = null;
+
+function buildStatGrid(containerId, opts){
+  var el = document.getElementById(containerId);
+  var html = '<div class="row-label"></div>';
+  statusNames.forEach(function(s){ html += '<div class="col-head">'+s.displayName+'</div>'; });
+  html += '<div class="row-label">'+ (opts.rowLabel || '') +'</div>';
+  statusNames.forEach(function(s){
+    html += '<input type="number" id="'+opts.prefix+'_'+s.name+'" '+
+      (opts.attrs||'') + ' value="'+(opts.defaultVal!==undefined?opts.defaultVal:'')+'" placeholder="'+(opts.placeholder||'')+'">';
+  });
+  el.innerHTML = html;
+}
+
+buildStatGrid('cbGrid',     {prefix:'cb',    rowLabel:'ボーナス',   defaultVal:0, attrs:'min="0" max="999"'});
+buildStatGrid('actualGrid', {prefix:'actual',rowLabel:'実測値',     attrs:'min="0" max="9999"', placeholder:'—'});
+buildStatGrid('ivb2Grid',   {prefix:'ivb2',  rowLabel:'個体値B_2',  defaultVal:0, attrs:'min="0" max="99"'});
+buildStatGrid('ivb1Grid',   {prefix:'ivb1',  rowLabel:'既知のB_1',  attrs:'min="0" max="30"', placeholder:'?'});
+buildStatGrid('cb2Grid',    {prefix:'cb2',   rowLabel:'ボーナス',   defaultVal:0, attrs:'min="0" max="999"'});
+buildStatGrid('ivb2bGrid',  {prefix:'ivb2b', rowLabel:'個体値B_2',  defaultVal:0, attrs:'min="0" max="99"'});
+buildStatGrid('actual2Grid',{prefix:'actual2',rowLabel:'実測値',    attrs:'min="0" max="9999"', placeholder:'—'});
+
+/* 性格セレクト */
+function fillCharaSelect(id){
+  var sel = document.getElementById(id);
+  characteristicsData.forEach(function(c, i){
+    var opt = document.createElement('option');
+    opt.value = i; opt.textContent = c.name;
+    sel.appendChild(opt);
+  });
+}
+fillCharaSelect('characteristics');
+fillCharaSelect('characteristics2');
+
+function applyChara(selId, cbPrefix){
+  var sel = document.getElementById(selId);
+  var c = characteristicsData[parseInt(sel.value, 10)];
+  var manual = !!c.inputManually;
+  statusNames.forEach(function(s, i){
+    var inp = document.getElementById(cbPrefix+'_'+s.name);
+    inp.disabled = !manual;
+    if (!manual) inp.value = c.bonus[i];
+  });
+  refreshSumNotes();
+}
+document.getElementById('characteristics').addEventListener('change', function(){ applyChara('characteristics','cb'); });
+document.getElementById('characteristics2').addEventListener('change', function(){ applyChara('characteristics2','cb2'); });
+applyChara('characteristics','cb');
+applyChara('characteristics2','cb2');
+
+/* 妖怪検索 */
+var $search = document.getElementById('yokaiSearch');
+var $list = document.getElementById('yokaiList');
+var $selInfo = document.getElementById('selectedYokaiInfo');
+
+function renderYokaiList(term){
+  term = (term||'').trim();
+  var matches = yokaiData.filter(function(y){
+    if (!term) return false;
+    return y.name.indexOf(term) > -1 || y.furigana.indexOf(term) > -1;
+  }).slice(0, 40);
+  if (matches.length === 0) { $list.classList.remove('open'); $list.innerHTML=''; return; }
+  $list.innerHTML = matches.map(function(y){
+    return '<div class="picker-item" data-num="'+y.num+'"><span>'+y.name+'</span><small>'+classes[y.class].name+'</small></div>';
+  }).join('');
+  $list.classList.add('open');
+}
+$search.addEventListener('input', function(){ renderYokaiList($search.value); });
+$search.addEventListener('focus', function(){ if ($search.value) renderYokaiList($search.value); });
+document.addEventListener('click', function(e){
+  if (!e.target.closest('.picker')) $list.classList.remove('open');
+});
+$list.addEventListener('click', function(e){
+  var item = e.target.closest('.picker-item');
+  if (!item) return;
+  var num = parseInt(item.getAttribute('data-num'), 10);
+  selectedYokai = yokaiData.find(function(y){ return y.num === num; });
+  $search.value = selectedYokai.name;
+  $list.classList.remove('open');
+  renderSelectedInfo();
+  highlightAColumns();
+});
+function renderSelectedInfo(){
+  if (!selectedYokai) { $selInfo.textContent=''; return; }
+  var cl = classes[selectedYokai.class];
+  var bsStr = statusNames.map(function(s,i){ return s.displayName+' '+selectedYokai.bs[i]; }).join(' / ');
+  var aStr = statusNames.filter(function(s,i){ return cl.bs_A[i]; }).map(function(s){ return s.displayName; }).join('・');
+  $selInfo.innerHTML = '選択中：<strong>'+selectedYokai.name+'</strong>（'+cl.name+'）<br>種族値 '+bsStr+
+    '<br>個体値Aを持つのは <strong>'+(aStr || 'なし')+'</strong>';
+}
+function highlightAColumns(){
+  if (!selectedYokai) return;
+  var cl = classes[selectedYokai.class];
+  ['actual','actual2'].forEach(function(p){
+    statusNames.forEach(function(s,i){
+      var inp = document.getElementById(p+'_'+s.name);
+      if (inp) inp.classList.toggle('hasA', cl.bs_A[i]);
+    });
+  });
+}
+
+/* 合計チェック */
+function sumInputs(prefix){
+  var total = 0;
+  statusNames.forEach(function(s){
+    var v = parseInt(document.getElementById(prefix+'_'+s.name).value, 10);
+    total += isNaN(v) ? 0 : v;
+  });
+  return total;
+}
+function refreshSumNotes(){
+  var cbSum = sumInputs('cb');
+  var cbNote = document.getElementById('cbSumNote');
+  cbNote.textContent = '性格ボーナス合計：'+cbSum+'（通常は20）';
+  cbNote.className = 'sum-note ' + (cbSum > 20 ? 'warn' : 'good');
+}
+document.getElementById('cbGrid').addEventListener('input', refreshSumNotes);
+refreshSumNotes();
+
+/* =========================================================
+   逆算処理
+   ========================================================= */
+function readRow(prefix, fallback){
+  return statusNames.map(function(s){
+    var raw = document.getElementById(prefix+'_'+s.name).value;
+    if (raw === '') return (fallback === undefined ? null : fallback);
+    var v = parseInt(raw, 10);
+    return isNaN(v) ? (fallback === undefined ? null : fallback) : v;
+  });
+}
+
+/* 1回の測定について、各ステータスの b1 -> Aの候補配列 を返す */
+function solveMeasurement(meas, sumB1){
+  var cl = classes[selectedYokai.class];
+  return statusNames.map(function(s, i){
+    var hasA = cl.bs_A[i];
+    var actual = meas.actual[i];
+    var map = {};
+    if (actual === null) {
+      for (var b = 0; b <= sumB1; b++) map[b] = null; // 不明
+      return {map:map, hasA:hasA, unknown:true};
+    }
+    var isHP = (i === 0), growPat = selectedYokai.growPat[i], bs = selectedYokai.bs[i];
+    for (var b1 = 0; b1 <= sumB1; b1++) {
+      if (hasA) {
+        var list = [];
+        for (var a = 0; a <= MAX_A; a++) {
+          if (calcStatus(growPat, bs, a, b1, meas.b2[i], meas.cb[i], meas.level, isHP) === actual) list.push(a);
+        }
+        if (list.length) map[b1] = list;
+      } else {
+        if (calcStatus(growPat, bs, 0, b1, meas.b2[i], meas.cb[i], meas.level, isHP) === actual) map[b1] = [0];
+      }
+    }
+    return {map:map, hasA:hasA, unknown:false};
+  });
+}
+
+function intersectSolutions(s1, s2){
+  return s1.map(function(a, i){
+    var b = s2[i];
+    if (b.unknown) return a;
+    if (a.unknown) return b;
+    var map = {};
+    Object.keys(a.map).forEach(function(k){
+      if (!(k in b.map)) return;
+      var la = a.map[k], lb = b.map[k];
+      if (la === null) { map[k] = lb; return; }
+      if (lb === null) { map[k] = la; return; }
+      var inter = la.filter(function(v){ return lb.indexOf(v) > -1; });
+      if (inter.length) map[k] = inter;
+    });
+    return {map:map, hasA:a.hasA, unknown:false};
+  });
+}
+
+function applyKnownB1(sols, known){
+  return sols.map(function(s, i){
+    if (known[i] === null) return s;
+    var map = {};
+    if (known[i] in s.map || (s.unknown && known[i] <= 99)) {
+      map[known[i]] = s.map[known[i]] !== undefined ? s.map[known[i]] : null;
+    }
+    return {map:map, hasA:s.hasA, unknown:s.unknown};
+  });
+}
+
+function enumerateCombos(sols, sumB1, limit){
+  var keys = sols.map(function(s){
+    return Object.keys(s.map).map(Number).sort(function(a,b){ return a-b; });
+  });
+  var combos = [], overflow = false;
+  (function dfs(i, remain, acc){
+    if (overflow) return;
+    if (i === 5) { if (remain === 0) { if (combos.length >= limit) { overflow = true; return; } combos.push(acc.slice()); } return; }
+    for (var k = 0; k < keys[i].length; k++) {
+      var b = keys[i][k];
+      if (b > remain) break;
+      acc.push(b);
+      dfs(i + 1, remain - b, acc);
+      acc.pop();
+      if (overflow) return;
+    }
+  })(0, sumB1, []);
+  return {combos:combos, overflow:overflow};
+}
+
+function fmtList(list){
+  if (list === null) return '不明';
+  if (list.length === 1) return String(list[0]);
+  if (list.length <= 6) return list.join(' / ');
+  return list[0] + '〜' + list[list.length-1] + '（' + list.length + '通り）';
+}
+
+function runCalc(){
+  var $result = document.getElementById('result');
+  if (!selectedYokai) {
+    $result.innerHTML = '<div class="msg">①で妖怪を選ぶと計算できます。</div>';
+    return;
+  }
+  var level = parseInt(document.getElementById('level').value, 10);
+  if (!(level >= 1 && level <= 99)) {
+    $result.innerHTML = '<div class="msg">レベルは1〜99で入力してください。</div>';
+    return;
+  }
+  var sumB1 = parseInt(document.getElementById('b1sum').value, 10);
+  if (!(sumB1 >= 0 && sumB1 <= 30)) {
+    $result.innerHTML = '<div class="msg">個体値B_1の合計は0〜30で入力してください。通常は10です。</div>';
+    return;
+  }
+
+  var meas1 = {level:level, cb:readRow('cb', 0), b2:readRow('ivb2', 0), actual:readRow('actual')};
+  if (meas1.actual.every(function(v){ return v === null; })) {
+    $result.innerHTML = '<div class="msg">③にゲーム内のステータスを入力してください。1項目でも埋まれば計算を始められます。</div>';
+    return;
+  }
+
+  var sols = solveMeasurement(meas1, sumB1);
+
+  // 2回目の測定
+  var actual2 = readRow('actual2');
+  var used2 = actual2.some(function(v){ return v !== null; });
+  if (used2) {
+    var level2 = parseInt(document.getElementById('level2').value, 10);
+    if (!(level2 >= 1 && level2 <= 99)) {
+      $result.innerHTML = '<div class="msg">2回目のレベルは1〜99で入力してください。</div>';
+      return;
+    }
+    var meas2 = {level:level2, cb:readRow('cb2', 0), b2:readRow('ivb2b', 0), actual:actual2};
+    sols = intersectSolutions(sols, solveMeasurement(meas2, sumB1));
+  }
+
+  // 既知のB_1で絞り込み
+  var knownB1 = readRow('ivb1');
+  if (knownB1.some(function(v){ return v !== null; })) {
+    sols = applyKnownB1(sols, knownB1);
+  }
+
+  var res = enumerateCombos(sols, sumB1, 5000);
+  var combos = res.combos;
+  var cl = classes[selectedYokai.class];
+
+  var html = '';
+
+  if (combos.length === 0) {
+    html += '<div class="msg">条件に合う組み合わせが見つかりません。レベル・性格ボーナス・個体値B_2・入力したステータスのどれかがずれている可能性があります。B_1の合計（通常10）も確認してください。</div>';
+    document.getElementById('result').innerHTML = html;
+    return;
+  }
+
+  // 各ステータスの取りうる値を組み合わせから集計
+  var b1Sets = [[],[],[],[],[]], aSets = [[],[],[],[],[]], aUnknown = [false,false,false,false,false];
+  combos.forEach(function(c){
+    c.forEach(function(b, i){
+      if (b1Sets[i].indexOf(b) < 0) b1Sets[i].push(b);
+      var al = sols[i].map[b];
+      if (al === null) { aUnknown[i] = true; return; }
+      al.forEach(function(a){ if (aSets[i].indexOf(a) < 0) aSets[i].push(a); });
+    });
+  });
+  b1Sets.forEach(function(l){ l.sort(function(a,b){return a-b;}); });
+  aSets.forEach(function(l){ l.sort(function(a,b){return a-b;}); });
+
+  html += '<div class="result-card">';
+  html += '<h3 class="result-title">'+selectedYokai.name+'（Lv.'+level+'／'+cl.name+'）の推定結果</h3>';
+  html += '<p class="result-sub">B_1の合計を'+sumB1+'として、実測ステータスに合う個体値B_1とAの組み合わせを総当たりしました。'+
+    (used2 ? '2回目の測定も条件に含めています。' : '')+'</p>';
+  html += '<div class="scroll-x"><table class="res"><thead><tr><th style="text-align:left">ステータス</th><th>種族値</th><th>伸び方</th><th>実測値</th><th>個体値B_1</th><th>個体値A</th></tr></thead><tbody>';
+  statusNames.forEach(function(s, i){
+    var b1Txt = fmtList(b1Sets[i]);
+    var aTxt = cl.bs_A[i] ? (aUnknown[i] && aSets[i].length === 0 ? '不明' : fmtList(aSets[i])) : '—';
+    var b1Badge = b1Sets[i].length === 1 ? '<span class="badge hit">確定</span> ' : '';
+    var aBadge = cl.bs_A[i] ? (aSets[i].length === 1 && !aUnknown[i] ? '<span class="badge hit">確定</span> ' : '') : '';
+    html += '<tr><td class="stat-name">'+s.displayName+'</td>'+
+      '<td>'+selectedYokai.bs[i]+'</td>'+
+      '<td>'+growPatName[selectedYokai.growPat[i]]+'</td>'+
+      '<td>'+(meas1.actual[i] === null ? '—' : meas1.actual[i])+'</td>'+
+      '<td>'+b1Badge+'<span class="cand-list">'+b1Txt+'</span></td>'+
+      '<td>'+aBadge+(cl.bs_A[i] ? '<span class="cand-list">'+aTxt+'</span>' : '<span class="badge fixed">なし</span>')+'</td></tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  // 組み合わせ一覧
+  html += '<div class="result-card">';
+  html += '<div class="combo-head"><h3 class="result-title" style="margin:0">組み合わせ候補</h3>'+
+    '<span class="combo-count">'+(res.overflow ? '5000件以上' : combos.length+'件')+
+    (combos.length > 200 ? '（先頭200件を表示）' : '')+'</span></div>';
+  html += '<p class="result-sub">各マスは「B_1（A）」の形式です。Aを持たないステータスは B_1 のみ表示します。</p>';
+  html += '<div class="scroll-x"><table class="combo"><thead><tr><th></th>';
+  statusNames.forEach(function(s){ html += '<th>'+s.displayName+'</th>'; });
+  html += '</tr></thead><tbody>';
+  combos.slice(0, 200).forEach(function(c, idx){
+    html += '<tr><td class="idx">'+(idx+1)+'</td>';
+    c.forEach(function(b, i){
+      var al = sols[i].map[b];
+      var aTxt = cl.bs_A[i] ? '<span class="av">（'+(al === null ? '?' : fmtList(al))+'）</span>' : '';
+      html += '<td><span class="b1v">'+b+'</span>'+aTxt+'</td>';
+    });
+    html += '</tr>';
+  });
+  html += '</tbody></table></div></div>';
+
+  if (combos.length === 1) {
+    html += '<div class="msg info">候補が1つに決まりました。この組み合わせがこの妖怪の個体値です。</div>';
+  } else {
+    html += '<div class="msg info">候補が複数あります。レベルを上げてから測り直した数値を「2回目の測定」に入れると、ほぼ1つに絞り込めます。空欄のステータスを埋めるのも効果的です。</div>';
+  }
+
+  document.getElementById('result').innerHTML = html;
+  document.getElementById('result').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+document.getElementById('calcBtn').addEventListener('click', runCalc);
+</script>
+</body>
+</html>
